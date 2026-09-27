@@ -92,13 +92,11 @@ assert.equal(
   );
   const result = parseChatBody({ messages: big });
   assert.ok(result.ok);
-  const total =
-    result.ok &&
-    result.messages.reduce(
-      (sum, m) => sum + m.parts.reduce((s, p) => s + (p.type === "text" ? p.text.length : 0), 0),
-      0,
-    );
-  assert.ok(total !== false && total <= MAX_TOTAL_CHARS);
+  const total = result.messages.reduce(
+    (sum, m) => sum + m.parts.reduce((s, p) => s + (p.type === "text" ? p.text.length : 0), 0),
+    0,
+  );
+  assert.ok(total <= MAX_TOTAL_CHARS);
 }
 
 // A single assistant message over the total cap is rejected outright.

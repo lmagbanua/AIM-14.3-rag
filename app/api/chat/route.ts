@@ -1,16 +1,28 @@
 import { convertToModelMessages, stepCountIs, streamText, tool } from "ai";
 import { z } from "zod";
 
+import manifest from "@/corpus/manifest.json";
+
 import { parseChatBody } from "./validation";
 
 // Streaming can exceed the default serverless timeout on long answers.
 export const maxDuration = 30;
 
-const SYSTEM_PROMPT = `You are a helpful assistant that answers questions about a specific document collection (several separate documents).
+// The model can only form document-targeted search queries (e.g. "summarize
+// each document") if it knows what the corpus contains, so the manifest
+// titles go into both the system prompt and the tool description (DEF-1).
+const CORPUS_TITLES = manifest.map((doc) => doc.title);
+const CORPUS_LIST = CORPUS_TITLES.map((title) => `- ${title}`).join("\n");
+
+const SYSTEM_PROMPT = `You are a helpful assistant that answers questions about a specific document collection.
+
+The knowledge base contains exactly these ${CORPUS_TITLES.length} documents:
+${CORPUS_LIST}
 
 Rules:
 - For every user question about the subject matter, call the searchKnowledgeBase tool BEFORE answering, even if you think you know the answer. Your general knowledge may be outdated or wrong for this corpus.
-- Base your answer only on the tool results. If the tool returns nothing relevant, say you couldn't find this in the knowledge base — do not answer from general knowledge.
+- When a question is about the collection itself or asks about each/all documents (e.g. "summarize each document"), run a separate search per document using that document's title as the query, then answer document by document.
+- Base your answer only on the tool results. If the retrieved passages do not cover the question, reply that the knowledge base does not cover it and stop. Never answer from general knowledge, never supplement the retrieved passages with general knowledge (even if you flag it as general knowledge or the user asks you to), and never answer "in general" as a fallback. Topics not covered by these documents — other laws, regulations, standards, or anything else — get the same decline.
 - Answers should be concise and directly grounded in the retrieved passages. When you use a passage, cite which document it came from and the page, naturally in prose (e.g. "According to <document title> (p. 4)..."). When passages from different documents disagree or complement each other, attribute each point to its document.
 - Only pure greetings or questions about how to use this chat may be answered without the tool.`;
 
@@ -52,13 +64,14 @@ export async function POST(req: Request) {
     model: chatModel,
     system: SYSTEM_PROMPT,
     messages: convertToModelMessages(parsed.messages),
-    // One retrieval round-trip plus the grounded answer; a second tool step
-    // is allowed for follow-up queries the model reformulates itself.
-    stopWhen: stepCountIs(3),
+    // Enough steps for one search per corpus document (per-document
+    // questions like "summarize each document") plus the grounded answer.
+    stopWhen: stepCountIs(CORPUS_TITLES.length + 2),
     tools: {
       searchKnowledgeBase: tool({
-        description:
-          "REQUIRED before answering any question about the subject matter: searches the knowledge base and returns the most relevant passages with their document title and page number. Always call this first — never answer content questions from memory. Reformulate the user's question into a focused search query.",
+        description: `REQUIRED before answering any question about the subject matter: searches the knowledge base and returns the most relevant passages with their document title and page number. The knowledge base contains these documents: ${CORPUS_TITLES.join(
+          "; ",
+        )}. Always call this first — never answer content questions from memory. Reformulate the user's question into a focused search query; to target one specific document, include its title in the query.`,
         inputSchema: z.object({
           query: z
             .string()
