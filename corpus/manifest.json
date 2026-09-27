@@ -1,0 +1,17 @@
+[
+  {
+    "file": "pdfs/nist-csf-2.pdf",
+    "title": "NIST Cybersecurity Framework (CSF) 2.0",
+    "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf"
+  },
+  {
+    "file": "pdfs/ftc-data-breach-response.pdf",
+    "title": "FTC Data Breach Response: A Guide for Business",
+    "url": "https://www.ftc.gov/system/files/documents/plain-language/pdf-0154_data-breach-response-guide-for-business-042519-508.pdf"
+  },
+  {
+    "file": "pdfs/cisa-cyber-essentials.pdf",
+    "title": "CISA Cyber Essentials Starter Kit",
+    "url": "https://www.cisa.gov/sites/default/files/publications/Cyber%20Essentials%20Starter%20Kit_03.12.2021_508_0.pdf"
+  }
+]

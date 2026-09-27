@@ -5,15 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1719997972944,
-      "tag": "0000_yielding_bloodaxe",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1790515799844,
-      "tag": "0001_simple_black_panther",
+      "when": 1790516665812,
+      "tag": "0000_outgoing_yellowjacket",
       "breakpoints": true
     }
   ]

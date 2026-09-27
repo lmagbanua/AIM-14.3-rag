@@ -25,7 +25,8 @@ export const embeddings = pgTable(
     // Citation metadata, denormalized so a similarity query returns
     // everything the UI needs without a join.
     sourceTitle: text("source_title").notNull(),
-    section: text("section").notNull().default(""),
+    sourceUrl: text("source_url").notNull().default(""),
+    page: integer("page").notNull().default(1),
     chunkIndex: integer("chunk_index").notNull().default(0),
   },
   (table) => ({

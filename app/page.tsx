@@ -119,7 +119,7 @@ export default function Chat() {
           {panelSources.length === 0 ? (
             <p className="text-sm text-zinc-500">
               Passages retrieved for the latest answer will appear here, with
-              their source and section.
+              their document and page.
             </p>
           ) : (
             <ol className="flex flex-col gap-3">
@@ -220,15 +220,25 @@ function SourceCard({
     <li className="rounded-lg border bg-zinc-50 p-3 text-left">
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-xs font-semibold text-zinc-700">
-          [{index + 1}] {source.sourceTitle}
+          [{index + 1}]{" "}
+          {source.sourceUrl ? (
+            <a
+              href={source.sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="hover:underline"
+            >
+              {source.sourceTitle}
+            </a>
+          ) : (
+            source.sourceTitle
+          )}
         </p>
         <span className="shrink-0 text-[10px] tabular-nums text-zinc-400">
           {(source.similarity * 100).toFixed(0)}%
         </span>
       </div>
-      {source.section && (
-        <p className="mt-0.5 text-[11px] text-zinc-500">{source.section}</p>
-      )}
+      <p className="mt-0.5 text-[11px] text-zinc-500">p. {source.page}</p>
       <p className="mt-1.5 line-clamp-4 text-xs leading-relaxed text-zinc-600">
         {source.content}
       </p>

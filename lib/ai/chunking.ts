@@ -1,6 +1,6 @@
 export interface Chunk {
   content: string;
-  section: string;
+  page: number; // 1-based PDF page the chunk came from
   chunkIndex: number;
 }
 
@@ -12,65 +12,29 @@ export const CHUNK_SIZE = 1200; // characters, ~300 tokens
 export const CHUNK_OVERLAP = 200;
 
 /**
- * Split a markdown document into chunks with section metadata.
+ * Split per-page PDF text into chunks with page metadata.
  *
- * Strategy: split on headings first so every chunk belongs to exactly one
- * section (the heading path becomes citation metadata), then split long
- * sections on sentence boundaries with overlap. Short adjacent content in
- * the same section stays together.
+ * Chunks never span pages: page numbers are the citation unit, and a
+ * chunk that straddled two pages could not be cited precisely. Long
+ * pages are split on sentence boundaries with overlap.
  */
-export function chunkMarkdown(markdown: string): Chunk[] {
-  const sections = splitBySections(markdown);
+export function chunkPages(pages: string[]): Chunk[] {
   const chunks: Chunk[] = [];
   let chunkIndex = 0;
 
-  for (const section of sections) {
-    for (const piece of splitWithOverlap(section.content)) {
+  pages.forEach((pageText, i) => {
+    // PDF extraction yields uneven whitespace; collapse it so chunk
+    // boundaries land on real sentence structure.
+    const text = pageText.replace(/\s+/g, " ").trim();
+    for (const piece of splitWithOverlap(text)) {
       const content = piece.trim();
-      if (content.length < 40) continue; // skip heading-only / stub fragments
-      chunks.push({ content, section: section.heading, chunkIndex });
+      if (content.length < 40) continue; // skip header/footer-only fragments
+      chunks.push({ content, page: i + 1, chunkIndex });
       chunkIndex++;
     }
-  }
+  });
 
   return chunks;
-}
-
-interface Section {
-  heading: string;
-  content: string;
-}
-
-function splitBySections(markdown: string): Section[] {
-  const lines = markdown.split("\n");
-  const sections: Section[] = [];
-  // Track the heading path (e.g. "Benefits > Time off") so citations
-  // locate the chunk even in deeply nested documents.
-  const headingPath: string[] = [];
-  let current: string[] = [];
-
-  const flush = () => {
-    const content = current.join("\n").trim();
-    if (content) {
-      sections.push({ heading: headingPath.join(" > "), content });
-    }
-    current = [];
-  };
-
-  for (const line of lines) {
-    const match = /^(#{1,4})\s+(.*)$/.exec(line);
-    if (match) {
-      flush();
-      const level = match[1].length;
-      headingPath.splice(level - 1);
-      headingPath[level - 1] = match[2].trim();
-    } else {
-      current.push(line);
-    }
-  }
-  flush();
-
-  return sections;
 }
 
 function splitWithOverlap(text: string): string[] {

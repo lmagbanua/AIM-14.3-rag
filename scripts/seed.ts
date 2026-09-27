@@ -1,61 +1,74 @@
 /**
- * Ingest every markdown file in /corpus into the vector store.
+ * Ingest every PDF listed in corpus/manifest.json into the vector store.
  *
  * Usage: pnpm db:seed
  * Requires DATABASE_URL and OPENAI_API_KEY. Idempotent per source file:
  * re-running replaces previously ingested rows for the same file.
  */
 import "dotenv/config";
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { eq } from "drizzle-orm";
+import { extractText, getDocumentProxy } from "unpdf";
 import { db } from "../lib/db";
 import { resources } from "../lib/db/schema/resources";
 import { embeddings } from "../lib/db/schema/embeddings";
-import { generateEmbeddings } from "../lib/ai/embedding";
+import { chunkPages } from "../lib/ai/chunking";
+import { embedChunks } from "../lib/ai/embedding";
 
 const CORPUS_DIR = path.join(process.cwd(), "corpus");
 
-function titleFrom(markdown: string, fileName: string): string {
-  const heading = /^#\s+(.+)$/m.exec(markdown);
-  return heading ? heading[1].trim() : fileName.replace(/\.mdx?$/, "");
+interface ManifestEntry {
+  file: string;
+  title: string;
+  url: string;
 }
 
 async function main() {
-  const files = (await readdir(CORPUS_DIR)).filter((f) => /\.mdx?$/.test(f));
-  if (files.length === 0) {
-    console.error(`No markdown files found in ${CORPUS_DIR}`);
+  const manifest: ManifestEntry[] = JSON.parse(
+    await readFile(path.join(CORPUS_DIR, "manifest.json"), "utf8"),
+  );
+  if (manifest.length === 0) {
+    console.error("corpus/manifest.json lists no documents");
     process.exit(1);
   }
 
-  for (const file of files) {
+  for (const { file, title, url } of manifest) {
     const source = `corpus/${file}`;
-    const content = await readFile(path.join(CORPUS_DIR, file), "utf8");
-    const title = titleFrom(content, file);
+    const buffer = await readFile(path.join(CORPUS_DIR, file));
+    const pdf = await getDocumentProxy(new Uint8Array(buffer));
+    const { totalPages, text: pages } = await extractText(pdf, {
+      mergePages: false,
+    });
+
+    const chunks = chunkPages(pages);
+    const embedded = await embedChunks(chunks);
 
     // Replace any previous ingestion of this file (embeddings cascade).
     await db.delete(resources).where(eq(resources.source, source));
 
     const [resource] = await db
       .insert(resources)
-      .values({ title, source, content })
+      .values({ title, source, content: pages.join("\n\n") })
       .returning();
 
-    const chunks = await generateEmbeddings(content);
-    if (chunks.length > 0) {
+    if (embedded.length > 0) {
       await db.insert(embeddings).values(
-        chunks.map((chunk) => ({
+        embedded.map((chunk) => ({
           resourceId: resource.id,
           content: chunk.content,
           embedding: chunk.embedding,
           sourceTitle: title,
-          section: chunk.section,
+          sourceUrl: url,
+          page: chunk.page,
           chunkIndex: chunk.chunkIndex,
         })),
       );
     }
 
-    console.log(`Ingested ${source} — "${title}", ${chunks.length} chunks`);
+    console.log(
+      `Ingested ${source} — "${title}", ${totalPages} pages, ${embedded.length} chunks`,
+    );
   }
 
   process.exit(0);

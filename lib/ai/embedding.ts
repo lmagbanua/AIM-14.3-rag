@@ -2,17 +2,15 @@ import { embed, embedMany } from "ai";
 import { cosineDistance, desc, gt, sql } from "drizzle-orm";
 import { db } from "../db";
 import { embeddings } from "../db/schema/embeddings";
-import { chunkMarkdown, type Chunk } from "./chunking";
+import type { Chunk } from "./chunking";
 import { embeddingModel } from "./models";
 
 export interface EmbeddedChunk extends Chunk {
   embedding: number[];
 }
 
-export async function generateEmbeddings(
-  content: string,
-): Promise<EmbeddedChunk[]> {
-  const chunks = chunkMarkdown(content);
+export async function embedChunks(chunks: Chunk[]): Promise<EmbeddedChunk[]> {
+  if (chunks.length === 0) return [];
   const { embeddings: vectors } = await embedMany({
     model: embeddingModel,
     values: chunks.map((chunk) => chunk.content),
@@ -29,7 +27,8 @@ export async function generateEmbedding(value: string): Promise<number[]> {
 export interface RetrievedSource {
   content: string;
   sourceTitle: string;
-  section: string;
+  sourceUrl: string;
+  page: number;
   similarity: number;
 }
 
@@ -52,7 +51,8 @@ export async function findRelevantContent(
     .select({
       content: embeddings.content,
       sourceTitle: embeddings.sourceTitle,
-      section: embeddings.section,
+      sourceUrl: embeddings.sourceUrl,
+      page: embeddings.page,
       similarity,
     })
     .from(embeddings)
