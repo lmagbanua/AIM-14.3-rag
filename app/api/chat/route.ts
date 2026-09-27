@@ -1,11 +1,7 @@
-import {
-  convertToModelMessages,
-  stepCountIs,
-  streamText,
-  tool,
-  type UIMessage,
-} from "ai";
+import { convertToModelMessages, stepCountIs, streamText, tool } from "ai";
 import { z } from "zod";
+
+import { parseChatBody } from "./validation";
 
 // Streaming can exceed the default serverless timeout on long answers.
 export const maxDuration = 30;
@@ -19,6 +15,19 @@ Rules:
 - Only pure greetings or questions about how to use this chat may be answered without the tool.`;
 
 export async function POST(req: Request) {
+  // Validate before anything else: this endpoint is public and spends OpenAI
+  // credits, so malformed or oversized bodies are rejected cheaply here.
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return new Response("Invalid request body.", { status: 400 });
+  }
+  const parsed = parseChatBody(body);
+  if (!parsed.ok) {
+    return new Response(parsed.error, { status: 400 });
+  }
+
   const missing = ["OPENAI_API_KEY", "DATABASE_URL"].filter(
     (name) => !process.env[name],
   );
@@ -39,12 +48,10 @@ export async function POST(req: Request) {
     import("@/lib/ai/models"),
   ]);
 
-  const { messages }: { messages: UIMessage[] } = await req.json();
-
   const result = streamText({
     model: chatModel,
     system: SYSTEM_PROMPT,
-    messages: convertToModelMessages(messages),
+    messages: convertToModelMessages(parsed.messages),
     // One retrieval round-trip plus the grounded answer; a second tool step
     // is allowed for follow-up queries the model reformulates itself.
     stopWhen: stepCountIs(3),
