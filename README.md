@@ -91,8 +91,10 @@ answer "not in the knowledge base" instead of paraphrasing weak matches.
 Set `DATABASE_URL` and `OPENAI_API_KEY` as (server) environment variables in
 the Vercel project, run migrations + seed against the production database
 (`pnpm db:migrate && pnpm db:seed` locally with the prod `DATABASE_URL`),
-then deploy. Note the env schema in `lib/env.mjs` fails the build if either
-variable is missing — that's intentional.
+then deploy. The build itself does not require these variables; if they are
+missing at runtime, `/api/chat` responds 503 with a clear "not configured"
+message (shown in the UI) instead of crashing, and `pnpm db:seed` exits with
+an explanation. No stack traces or internals reach the client either way.
 
 ## Trade-offs / notes
 
