@@ -10,11 +10,9 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { extractText, getDocumentProxy } from "unpdf";
-import { db } from "../lib/db";
 import { resources } from "../lib/db/schema/resources";
 import { embeddings } from "../lib/db/schema/embeddings";
 import { chunkPages } from "../lib/ai/chunking";
-import { embedChunks } from "../lib/ai/embedding";
 
 const CORPUS_DIR = path.join(process.cwd(), "corpus");
 
@@ -25,6 +23,26 @@ interface ManifestEntry {
 }
 
 async function main() {
+  const missing = ["DATABASE_URL", "OPENAI_API_KEY"].filter(
+    (name) => !process.env[name],
+  );
+  if (missing.length > 0) {
+    console.error(
+      `Cannot seed: missing ${missing.join(
+        " and ",
+      )}. Copy .env.example to .env and fill in the values.`,
+    );
+    process.exit(1);
+  }
+
+  // Imported after the env check: these modules validate env at load time,
+  // so a static import would exit with a validation error before the
+  // friendlier message above.
+  const [{ db }, { embedChunks }] = await Promise.all([
+    import("../lib/db"),
+    import("../lib/ai/embedding"),
+  ]);
+
   const manifest: ManifestEntry[] = JSON.parse(
     await readFile(path.join(CORPUS_DIR, "manifest.json"), "utf8"),
   );

@@ -1,5 +1,3 @@
-import { findRelevantContent } from "@/lib/ai/embedding";
-import { chatModel } from "@/lib/ai/models";
 import {
   convertToModelMessages,
   stepCountIs,
@@ -21,6 +19,26 @@ Rules:
 - Only pure greetings or questions about how to use this chat may be answered without the tool.`;
 
 export async function POST(req: Request) {
+  const missing = ["OPENAI_API_KEY", "DATABASE_URL"].filter(
+    (name) => !process.env[name],
+  );
+  if (missing.length > 0) {
+    // useChat surfaces this body as the error message shown in the UI.
+    return new Response(
+      `This deployment is not configured yet: missing ${missing.join(
+        " and ",
+      )}. Set the variable(s) listed in .env.example, then redeploy.`,
+      { status: 503 },
+    );
+  }
+
+  // Imported after the env guard: these modules validate env at load time,
+  // so a static import would crash with an opaque 500 before the guard runs.
+  const [{ findRelevantContent }, { chatModel }] = await Promise.all([
+    import("@/lib/ai/embedding"),
+    import("@/lib/ai/models"),
+  ]);
+
   const { messages }: { messages: UIMessage[] } = await req.json();
 
   const result = streamText({
@@ -44,5 +62,10 @@ export async function POST(req: Request) {
     },
   });
 
-  return result.toUIMessageStreamResponse();
+  return result.toUIMessageStreamResponse({
+    // Keep internals (connection strings, stack traces) out of the client;
+    // full details stay in the server logs.
+    onError: () =>
+      "The server hit an error while answering. Check the server logs for details.",
+  });
 }
