@@ -4,6 +4,14 @@ import { db } from "../db";
 import { embeddings } from "../db/schema/embeddings";
 import type { Chunk } from "./chunking";
 import { embeddingModel } from "./models";
+import {
+  diversifyBySource,
+  FETCH_K,
+  MIN_SIMILARITY,
+  type RetrievedSource,
+} from "./retrieval";
+
+export type { RetrievedSource };
 
 export interface EmbeddedChunk extends Chunk {
   embedding: number[];
@@ -23,20 +31,6 @@ export async function generateEmbedding(value: string): Promise<number[]> {
   const { embedding } = await embed({ model: embeddingModel, value: input });
   return embedding;
 }
-
-export interface RetrievedSource {
-  content: string;
-  sourceTitle: string;
-  sourceUrl: string;
-  page: number;
-  similarity: number;
-}
-
-// Retrieval knobs: top-6 keeps the context focused; the 0.3 floor drops
-// chunks that are only lexically adjacent so the model can honestly say
-// "not in the corpus" instead of paraphrasing noise.
-const TOP_K = 6;
-const MIN_SIMILARITY = 0.3;
 
 export async function findRelevantContent(
   userQuery: string,
@@ -58,7 +52,7 @@ export async function findRelevantContent(
     .from(embeddings)
     .where(gt(similarity, MIN_SIMILARITY))
     .orderBy((t) => desc(t.similarity))
-    .limit(TOP_K);
+    .limit(FETCH_K);
 
-  return rows;
+  return diversifyBySource(rows);
 }
