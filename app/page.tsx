@@ -8,6 +8,27 @@ import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
 import { BookOpen, Loader2, Search, Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
+
+// The model answers in Markdown; style the elements it uses, since the
+// Tailwind preflight strips default list/heading styles.
+const markdownComponents: Components = {
+  p: ({ children }) => <p className="my-2 first:mt-0 last:mb-0">{children}</p>,
+  ul: ({ children }) => <ul className="my-2 list-disc pl-5">{children}</ul>,
+  ol: ({ children }) => <ol className="my-2 list-decimal pl-5">{children}</ol>,
+  li: ({ children }) => <li className="my-1">{children}</li>,
+  h1: ({ children }) => <h3 className="mb-1 mt-3 font-semibold">{children}</h3>,
+  h2: ({ children }) => <h3 className="mb-1 mt-3 font-semibold">{children}</h3>,
+  h3: ({ children }) => <h3 className="mb-1 mt-3 font-semibold">{children}</h3>,
+  a: ({ children, href }) => (
+    <a href={href} target="_blank" rel="noreferrer" className="underline">
+      {children}
+    </a>
+  ),
+  code: ({ children }) => (
+    <code className="rounded bg-zinc-100 px-1 text-xs">{children}</code>
+  ),
+};
 
 function sourcesFor(message: UIMessage): RetrievedSource[] {
   return message.parts.flatMap((part) =>
@@ -183,8 +204,8 @@ function Message({ message }: { message: UIMessage }) {
         </div>
       )}
       {text.length > 0 && (
-        <div className="whitespace-pre-wrap rounded-2xl rounded-bl-sm border bg-white px-4 py-2.5 text-sm shadow-sm">
-          {text}
+        <div className="rounded-2xl rounded-bl-sm border bg-white px-4 py-2.5 text-sm shadow-sm">
+          <ReactMarkdown components={markdownComponents}>{text}</ReactMarkdown>
         </div>
       )}
       {sources.length > 0 && (
