@@ -39,6 +39,29 @@ function sourcesFor(message: UIMessage): RetrievedSource[] {
   );
 }
 
+// One chip per distinct document, listing its cited pages in order, so the
+// line under an answer stays short even when 8 passages were retrieved.
+function citationsFor(sources: RetrievedSource[]) {
+  const byDoc = new Map<string, { url: string; pages: Set<number> }>();
+  for (const source of sources) {
+    const doc = byDoc.get(source.sourceTitle) ?? {
+      url: source.sourceUrl,
+      pages: new Set<number>(),
+    };
+    doc.pages.add(source.page);
+    byDoc.set(source.sourceTitle, doc);
+  }
+  return [...byDoc].map(([title, { url, pages }]) => {
+    const sorted = [...pages].sort((a, b) => a - b);
+    return {
+      key: title,
+      // PDF viewers honor #page=N, so the chip opens the first cited page.
+      href: url ? `${url}#page=${sorted[0]}` : undefined,
+      label: `${title}, ${sorted.length === 1 ? "p." : "pp."} ${sorted.join(", ")}`,
+    };
+  });
+}
+
 function isSearching(message: UIMessage): boolean {
   return message.parts.some(
     (part) =>
@@ -209,22 +232,33 @@ function Message({ message }: { message: UIMessage }) {
         </div>
       )}
       {sources.length > 0 && (
-        <details className="text-xs text-zinc-500 lg:hidden">
-          <summary className="cursor-pointer select-none">
-            Sources ({sources.length})
-          </summary>
-          <ol className="mt-2 flex flex-col gap-2">
-            {sources.map((source, i) => (
-              <SourceCard key={i} source={source} index={i} />
+        <div className="flex flex-col gap-1.5 text-xs text-zinc-500">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="font-medium text-zinc-600">Sources:</span>
+            {citationsFor(sources).map((citation) => (
+              <a
+                key={citation.key}
+                href={citation.href}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-full border bg-white px-2 py-0.5 text-zinc-600 hover:bg-zinc-100"
+              >
+                {citation.label}
+              </a>
             ))}
-          </ol>
-        </details>
-      )}
-      {sources.length > 0 && (
-        <p className="hidden text-xs text-zinc-400 lg:block">
-          {sources.length} source passage{sources.length === 1 ? "" : "s"} — see
-          panel →
-        </p>
+          </div>
+          <details>
+            <summary className="cursor-pointer select-none">
+              Show {sources.length} retrieved passage
+              {sources.length === 1 ? "" : "s"}
+            </summary>
+            <ol className="mt-2 flex flex-col gap-2">
+              {sources.map((source, i) => (
+                <SourceCard key={i} source={source} index={i} />
+              ))}
+            </ol>
+          </details>
+        </div>
       )}
     </div>
   );

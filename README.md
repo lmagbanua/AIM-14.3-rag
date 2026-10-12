@@ -11,9 +11,11 @@ with AI SDK v5.
   `app/api/chat/route.ts`), not prompt stuffing — the model decides when to
   search and what query to use, and is instructed to always search before
   answering content questions
-- **Citations UI**: every retrieved passage is shown with document title
-  (linked to the public source), page number, and similarity score — side
-  panel on desktop, expandable "Sources" per message on mobile. The corpus
+- **Citations UI**: under every answer, a "Sources" line lists each cited
+  document with its pages (links open the source PDF at the first cited
+  page), with an expandable list of the retrieved passages (title, page,
+  similarity score). On desktop a side panel also shows the latest answer's
+  passages. The corpus
   spans multiple PDFs, so citations always say *which document* as well as
   *which page*.
 - **Meaningful empty state** with corpus description and clickable
