@@ -4,6 +4,8 @@ Next.js chat app grounded in a PDF corpus. Built on the
 [Vercel AI SDK RAG starter](https://github.com/vercel/ai-sdk-rag-starter)
 with AI SDK v5.
 
+**Live:** https://cyber-guidance-chat.vercel.app
+
 - **Streams answers** (`streamText` → `toUIMessageStreamResponse` → `useChat`)
 - **Retrieval is a tool call** (`searchKnowledgeBase` in
   `app/api/chat/route.ts`), not prompt stuffing — the model decides when to
@@ -35,7 +37,7 @@ Three public U.S. government cybersecurity guides (checked into
 
 Next.js 14 (App Router) · Vercel AI SDK v5 · OpenAI (`gpt-4o-mini` chat,
 `text-embedding-3-small` embeddings) · Postgres + pgvector · Drizzle ORM ·
-`unpdf` (PDF text extraction) · Tailwind + shadcn/ui.
+`unpdf` (PDF text extraction) · Tailwind + shadcn/ui · `react-markdown` (answer rendering).
 
 ## Run locally
 
@@ -74,9 +76,13 @@ Seeding is idempotent per file: re-running replaces rows for that source.
 
 ## Retrieval
 
-`lib/ai/embedding.ts#findRelevantContent`: cosine similarity via pgvector,
-**top-6** chunks above a **0.3** similarity floor. The floor lets the model
-answer "not in the knowledge base" instead of paraphrasing weak matches.
+`lib/ai/embedding.ts#findRelevantContent`: cosine similarity via pgvector
+over chunks above a **0.3** similarity floor. It fetches the 24 best
+candidates, then `diversifyBySource` (`lib/ai/retrieval.ts`) keeps the
+**top 8** with **at most 4 per document**, backfilling from capped-out rows
+when fewer documents are relevant. The cap stops one document from filling
+every slot on cross-document questions; the floor lets the model answer
+"not in the knowledge base" instead of paraphrasing weak matches.
 
 ## Swapping the corpus
 
@@ -108,8 +114,12 @@ an explanation. No stack traces or internals reach the client either way.
   upgrade path for table-dense corpora.
 - Metadata is denormalized onto embedding rows — duplicates the title per
   chunk, but keeps retrieval a single query.
-- `stopWhen: stepCountIs(3)` allows the model one retrieval, an answer, and
-  one self-reformulated follow-up search if the first query misses.
+- `stopWhen: stepCountIs(documents + 2)` (5 steps with the current corpus)
+  leaves room for one search per document on collection-wide questions
+  ("summarize each document"), or a reformulated follow-up search, plus the
+  final answer. The document titles from `corpus/manifest.json` are listed in
+  the system prompt and tool description so the model can target a document
+  by name.
 - The model cites document + page in prose; the structured citation
   rendering comes from the tool-call outputs captured client-side, so the
   sources panel always reflects what was actually retrieved.
